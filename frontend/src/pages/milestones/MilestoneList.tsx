@@ -127,7 +127,7 @@ const MilestoneList: React.FC = () => {
       width: '150px',
       render: (row: Milestone) => {
         if (!row.predecessors || row.predecessors.length === 0) return '-';
-        return row.predecessors.map((p) => p.name).join(', ');
+        return row.predecessors.map((p: any) => typeof p === 'string' ? p : p.name).join(', ');
       },
     },
     {
@@ -239,7 +239,7 @@ const MilestoneList: React.FC = () => {
             <button
               onClick={handleStatusChange}
               className="btn btn-primary"
-              disabled={newStatus === 'completed' && acceptCheck && !acceptCheck.valid}
+              disabled={newStatus === 'completed' && !!acceptCheck && !acceptCheck.valid}
             >
               确认
             </button>

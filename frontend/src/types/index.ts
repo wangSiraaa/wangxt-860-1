@@ -41,7 +41,10 @@ export interface Milestone {
   created_by: string;
   created_at: string;
   updated_at: string;
-  predecessors?: Milestone[];
+  predecessors?: Milestone[] | string[];
+  predecessor_ids?: string[];
+  predecessor_details?: { id: string; name: string; status: string }[];
+  predecessor_validation?: { valid: boolean; message: string };
   successors?: Milestone[];
   project?: Project;
 }
@@ -95,6 +98,7 @@ export interface AcceptanceForm {
   attachment_path?: string;
   attachment_name?: string;
   created_by: string;
+  created_by_user?: User;
   created_at: string;
   updated_at: string;
   milestone?: Milestone;

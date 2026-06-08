@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Milestone } from '@/types';
-import { getMilestone, updateMilestone } from '@/services/milestoneService';
+import { getMilestone, getMilestones, updateMilestone } from '@/services/milestoneService';
 import { getProjects } from '@/services/projectService';
 import { handleApiError } from '@/services/api';
 import { useAuth } from '@/context/AuthContext';
@@ -25,12 +25,12 @@ const MilestoneDetail: React.FC = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [milestoneData, allMilestonesData] = await Promise.all([
+      const [milestoneData, allMilestonesResponse] = await Promise.all([
         getMilestone(id!),
-        getMilestone(),
+        getMilestones(),
       ]);
       setMilestone(milestoneData);
-      setAllMilestones(allMilestonesData.data.filter((m) => m.id !== id && m.project_id === milestoneData.project_id));
+      setAllMilestones(allMilestonesResponse.data.filter((m: Milestone) => m.id !== id && m.project_id === milestoneData.project_id));
     } catch (error) {
       console.error('Failed to fetch milestone:', error);
     } finally {
@@ -84,7 +84,7 @@ const MilestoneDetail: React.FC = () => {
               onClick={() => {
                 setEditData({
                   ...milestone,
-                  predecessors: milestone.predecessors?.map((p) => p.id) || [],
+                  predecessors: milestone.predecessors?.map((p: any) => typeof p === 'string' ? p : p.id) || [],
                 });
                 setEditMode(true);
               }}
@@ -154,7 +154,7 @@ const MilestoneDetail: React.FC = () => {
                 value={editData.predecessors || []}
                 onChange={(e) => {
                   const values = Array.from(e.target.selectedOptions, (option) => option.value);
-                  setEditData({ ...editData, predecessors: values });
+                  setEditData({ ...editData, predecessors: values as string[] });
                 }}
                 className="input h-32"
               >
@@ -214,12 +214,12 @@ const MilestoneDetail: React.FC = () => {
             <div className="mb-6">
               <p className="text-sm text-gray-500 mb-2">前置依赖</p>
               <div className="flex flex-wrap gap-2">
-                {milestone.predecessors.map((p) => (
+                {milestone.predecessors.map((p: any) => (
                   <span
-                    key={p.id}
+                    key={typeof p === 'string' ? p : p.id}
                     className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-gray-100 text-gray-700"
                   >
-                    #{p.sequence} {p.name}
+                    {typeof p === 'string' ? p : `#${p.sequence} ${p.name}`}
                   </span>
                 ))}
               </div>

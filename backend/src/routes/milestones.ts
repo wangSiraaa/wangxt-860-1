@@ -26,8 +26,10 @@ router.use(authenticateToken);
 router.get('/', async (req: Request, res: Response) => {
   try {
     const { page, pageSize } = validate(paginationSchema, req.query);
+    const currentPage = page as number;
+    const currentPageSize = pageSize as number;
     const { project_id, status } = req.query;
-    const offset = (page - 1) * pageSize;
+    const offset = (currentPage - 1) * currentPageSize;
 
     let whereConditions: string[] = [];
     let params: any[] = [];
@@ -81,10 +83,10 @@ router.get('/', async (req: Request, res: Response) => {
        GROUP BY m.id, p.project_name, p.project_code, u.real_name
        ORDER BY m.sort_order ASC, m.created_at DESC
        LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
-      [...params, pageSize, offset]
+      [...params, currentPageSize, offset]
     );
 
-    return paginatedResponse(res, result.rows, total, page, pageSize);
+    return paginatedResponse(res, result.rows, total, currentPage, currentPageSize);
   } catch (error) {
     if (error instanceof z.ZodError) {
       return errorResponse(res, '参数验证失败', error.errors[0].message, 400);

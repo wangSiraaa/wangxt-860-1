@@ -51,7 +51,7 @@ const ProjectDetail: React.FC = () => {
           getUsers(),
         ]);
       setProject(projectData);
-      setMilestones(milestonesData.data);
+      setMilestones(milestonesData);
       setRisks(risksData.data);
       setMeetings(meetingsData.data);
       setAcceptances(acceptancesData.data);

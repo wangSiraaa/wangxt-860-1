@@ -3,11 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { createProject } from '@/services/projectService';
 import { getUsers } from '@/services/dashboardService';
 import { handleApiError } from '@/services/api';
-import { User } from '@/types';
+import { Project, User } from '@/types';
 import { useAuth } from '@/context/AuthContext';
 
 const ProjectCreate: React.FC = () => {
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<Partial<Project>>({
     name: '',
     code: '',
     customer_name: '',

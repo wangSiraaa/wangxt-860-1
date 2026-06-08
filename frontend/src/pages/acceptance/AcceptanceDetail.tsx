@@ -359,7 +359,6 @@ const AcceptanceDetail: React.FC = () => {
                 </p>
               </div>
             </div>
-            </div>
           )}
 
           {acceptance.reviewed_by_user && (
