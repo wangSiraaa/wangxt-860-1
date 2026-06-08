@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import Layout from './components/Layout';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
+import ProjectStatistics from './pages/ProjectStatistics';
 import ProjectList from './pages/projects/ProjectList';
 import ProjectDetail from './pages/projects/ProjectDetail';
 import ProjectCreate from './pages/projects/ProjectCreate';
@@ -48,6 +49,7 @@ const AppRoutes: React.FC = () => {
       >
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<Dashboard />} />
+        <Route path="statistics" element={<ProjectStatistics />} />
         <Route path="projects" element={<ProjectList />} />
         <Route path="projects/create" element={<ProjectCreate />} />
         <Route path="projects/:id" element={<ProjectDetail />} />

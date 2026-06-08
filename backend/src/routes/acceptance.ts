@@ -379,6 +379,13 @@ router.post('/:id/review', requireManager, async (req: Request, res: Response) =
       return errorResponse(res, '只有已提交或审核中的验收单可以审核', 'INVALID_STATUS', 400);
     }
 
+    if (status === 'accepted' && existing.rows[0].milestone_id) {
+      const canAccept = await checkMilestoneCanAccept(existing.rows[0].milestone_id);
+      if (!canAccept.valid) {
+        return errorResponse(res, canAccept.message, 'PREDECESSOR_NOT_COMPLETED', 400);
+      }
+    }
+
     const client = await pool.connect();
     try {
       await client.query('BEGIN');

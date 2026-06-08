@@ -145,3 +145,72 @@ export interface ProjectMember {
   role: string;
   user?: User;
 }
+
+export interface MilestoneStatusSummary {
+  status: string;
+  count: number;
+  milestones: Array<{
+    id: string;
+    name: string;
+    code: string;
+    project_id: string;
+    project_name: string;
+    customer_name: string;
+    planned_date?: string;
+    actual_date?: string;
+  }>;
+}
+
+export interface RiskLevelSummary {
+  risk_level: string;
+  count: number;
+  risks: Array<{
+    id: string;
+    title: string;
+    code: string;
+    project_id: string;
+    project_name: string;
+    customer_name: string;
+    status: string;
+  }>;
+}
+
+export interface ProjectMilestoneStats {
+  customer_name: string;
+  project_id: string;
+  project_name: string;
+  project_status: string;
+  total_milestones: number;
+  pending_milestones: number;
+  in_progress_milestones: number;
+  completed_milestones: number;
+  delayed_milestones: number;
+  cancelled_milestones: number;
+  highest_risk_level: string;
+}
+
+export interface ProjectRiskStatus {
+  project_id: string;
+  project_name: string;
+  customer_name: string;
+  project_status: string;
+  risk_score: number;
+  risk_level: 'none' | 'low' | 'medium' | 'high' | 'critical';
+  active_risks_count: number;
+  total_milestones: number;
+  completed_milestones: number;
+  delayed_milestones: number;
+}
+
+export interface ProjectStatistics {
+  by_customer: ProjectMilestoneStats[];
+  by_status: MilestoneStatusSummary[];
+  by_risk_level: RiskLevelSummary[];
+  project_risk_status: ProjectRiskStatus[];
+  customers: string[];
+  filters: {
+    customer_name: string | null;
+    status: string | null;
+    risk_level: string | null;
+  };
+}

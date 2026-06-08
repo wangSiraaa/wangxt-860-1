@@ -307,4 +307,213 @@ router.get('/users', async (req: Request, res: Response) => {
   }
 });
 
+router.get('/statistics', async (req: Request, res: Response) => {
+  try {
+    const userId = req.user!.id;
+    const isAdmin = req.user!.role === 'admin';
+    const { customer_name, status, risk_level } = req.query;
+
+    let whereConditions: string[] = [];
+    let params: any[] = [];
+    let paramIndex = 1;
+
+    if (!isAdmin) {
+      whereConditions.push(`(p.project_manager_id = $${paramIndex} OR EXISTS (
+        SELECT 1 FROM project_members pm 
+        WHERE pm.project_id = p.id AND pm.user_id = $${paramIndex}
+      ))`);
+      params.push(userId);
+      paramIndex++;
+    }
+
+    if (customer_name) {
+      whereConditions.push(`p.customer_name ILIKE $${paramIndex}`);
+      params.push(`%${customer_name}%`);
+      paramIndex++;
+    }
+
+    if (status) {
+      whereConditions.push(`m.status = $${paramIndex}`);
+      params.push(status);
+      paramIndex++;
+    }
+
+    if (risk_level) {
+      whereConditions.push(`EXISTS (
+        SELECT 1 FROM risks r 
+        WHERE r.project_id = p.id 
+          AND r.risk_level = $${paramIndex}
+          AND r.status NOT IN ('resolved', 'closed')
+      )`);
+      params.push(risk_level);
+      paramIndex++;
+    }
+
+    const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+
+    const milestonesByCustomer = await query(
+      `SELECT 
+        p.customer_name,
+        p.id as project_id,
+        p.project_name,
+        p.status as project_status,
+        COUNT(m.id) as total_milestones,
+        COUNT(m.id) FILTER (WHERE m.status = 'pending') as pending_milestones,
+        COUNT(m.id) FILTER (WHERE m.status = 'in_progress') as in_progress_milestones,
+        COUNT(m.id) FILTER (WHERE m.status = 'completed') as completed_milestones,
+        COUNT(m.id) FILTER (WHERE m.status = 'delayed') as delayed_milestones,
+        COUNT(m.id) FILTER (WHERE m.status = 'cancelled') as cancelled_milestones,
+        COALESCE(MAX(r.highest_risk), 'none') as highest_risk_level
+       FROM projects p
+       LEFT JOIN milestones m ON p.id = m.project_id
+       LEFT JOIN (
+         SELECT project_id, MAX(CASE risk_level 
+           WHEN 'critical' THEN 4 
+           WHEN 'high' THEN 3 
+           WHEN 'medium' THEN 2 
+           WHEN 'low' THEN 1 
+           ELSE 0 END) as highest_risk
+         FROM risks 
+         WHERE status NOT IN ('resolved', 'closed')
+         GROUP BY project_id
+       ) r ON p.id = r.project_id
+       ${whereClause}
+       GROUP BY p.id, p.customer_name, p.project_name, p.status
+       ORDER BY p.customer_name, p.project_name`,
+      params
+    );
+
+    const milestoneStatusSummary = await query(
+      `SELECT 
+        m.status,
+        COUNT(*) as count,
+        json_agg(json_build_object(
+          'id', m.id,
+          'name', m.milestone_name,
+          'code', m.milestone_code,
+          'project_id', p.id,
+          'project_name', p.project_name,
+          'customer_name', p.customer_name,
+          'planned_date', m.planned_date,
+          'actual_date', m.actual_date
+        )) as milestones
+       FROM milestones m
+       JOIN projects p ON m.project_id = p.id
+       ${isAdmin ? '' : `WHERE p.project_manager_id = $1 OR EXISTS (
+          SELECT 1 FROM project_members pm 
+          WHERE pm.project_id = p.id AND pm.user_id = $1
+        )`}
+       GROUP BY m.status
+       ORDER BY 
+         CASE m.status 
+           WHEN 'pending' THEN 1
+           WHEN 'in_progress' THEN 2
+           WHEN 'delayed' THEN 3
+           WHEN 'completed' THEN 4
+           WHEN 'cancelled' THEN 5
+           ELSE 6
+         END`,
+      isAdmin ? [] : [userId]
+    );
+
+    const riskLevelSummary = await query(
+      `SELECT 
+        r.risk_level,
+        COUNT(*) as count,
+        json_agg(json_build_object(
+          'id', r.id,
+          'title', r.risk_title,
+          'code', r.risk_code,
+          'project_id', p.id,
+          'project_name', p.project_name,
+          'customer_name', p.customer_name,
+          'status', r.status
+        )) as risks
+       FROM risks r
+       JOIN projects p ON r.project_id = p.id
+       WHERE r.status NOT IN ('resolved', 'closed')
+         ${isAdmin ? '' : `AND (p.project_manager_id = $1 OR EXISTS (
+            SELECT 1 FROM project_members pm 
+            WHERE pm.project_id = p.id AND pm.user_id = $1
+          ))`}
+       GROUP BY r.risk_level
+       ORDER BY 
+         CASE r.risk_level 
+           WHEN 'critical' THEN 1
+           WHEN 'high' THEN 2
+           WHEN 'medium' THEN 3
+           WHEN 'low' THEN 4
+           ELSE 5
+         END`,
+      isAdmin ? [] : [userId]
+    );
+
+    const projectRiskStatus = await query(
+      `SELECT 
+        p.id as project_id,
+        p.project_name,
+        p.customer_name,
+        p.status as project_status,
+        COALESCE(MAX(CASE r.risk_level 
+          WHEN 'critical' THEN 4 
+          WHEN 'high' THEN 3 
+          WHEN 'medium' THEN 2 
+          WHEN 'low' THEN 1 
+          ELSE 0 END), 0) as risk_score,
+        CASE COALESCE(MAX(CASE r.risk_level 
+          WHEN 'critical' THEN 4 
+          WHEN 'high' THEN 3 
+          WHEN 'medium' THEN 2 
+          WHEN 'low' THEN 1 
+          ELSE 0 END), 0)
+          WHEN 4 THEN 'critical'
+          WHEN 3 THEN 'high'
+          WHEN 2 THEN 'medium'
+          WHEN 1 THEN 'low'
+          ELSE 'none'
+        END as risk_level,
+        COUNT(DISTINCT r.id) as active_risks_count,
+        COUNT(DISTINCT m.id) as total_milestones,
+        COUNT(DISTINCT m.id) FILTER (WHERE m.status = 'completed') as completed_milestones,
+        COUNT(DISTINCT m.id) FILTER (WHERE m.status = 'delayed') as delayed_milestones
+       FROM projects p
+       LEFT JOIN risks r ON p.id = r.project_id AND r.status NOT IN ('resolved', 'closed')
+       LEFT JOIN milestones m ON p.id = m.project_id
+       ${isAdmin ? '' : `WHERE p.project_manager_id = $1 OR EXISTS (
+          SELECT 1 FROM project_members pm 
+          WHERE pm.project_id = p.id AND pm.user_id = $1
+        )`}
+       GROUP BY p.id, p.project_name, p.customer_name, p.status
+       ORDER BY risk_score DESC, p.project_name`,
+      isAdmin ? [] : [userId]
+    );
+
+    const customers = await query(
+      `SELECT DISTINCT p.customer_name
+       FROM projects p
+       ${isAdmin ? '' : `WHERE p.project_manager_id = $1 OR EXISTS (
+          SELECT 1 FROM project_members pm 
+          WHERE pm.project_id = p.id AND pm.user_id = $1
+        )`}
+       ORDER BY p.customer_name`,
+      isAdmin ? [] : [userId]
+    );
+
+    return successResponse(res, {
+      by_customer: milestonesByCustomer.rows,
+      by_status: milestoneStatusSummary.rows,
+      by_risk_level: riskLevelSummary.rows,
+      project_risk_status: projectRiskStatus.rows,
+      customers: customers.rows.map(r => r.customer_name),
+      filters: {
+        customer_name: customer_name || null,
+        status: status || null,
+        risk_level: risk_level || null,
+      },
+    }, '获取项目统计成功');
+  } catch (error) {
+    return errorResponse(res, '获取项目统计失败', error instanceof Error ? error.message : 'UNKNOWN_ERROR', 500);
+  }
+});
+
 export default router;

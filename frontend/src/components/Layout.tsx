@@ -14,6 +14,7 @@ const Layout: React.FC = () => {
 
   const menuItems = [
     { path: '/dashboard', label: '管理看板', icon: '📊' },
+    { path: '/statistics', label: '项目统计面板', icon: '📈' },
     { path: '/projects', label: '项目建档', icon: '📁' },
     { path: '/milestones', label: '里程碑维护', icon: '🎯' },
     { path: '/risks', label: '风险登记', icon: '⚠️' },

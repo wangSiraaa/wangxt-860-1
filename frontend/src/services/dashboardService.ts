@@ -1,5 +1,5 @@
 import api from './api';
-import { ApiResponse, DashboardStats, Project, Milestone, User } from '@/types';
+import { ApiResponse, DashboardStats, Project, Milestone, User, ProjectStatistics } from '@/types';
 
 export const getDashboardStats = async (): Promise<DashboardStats> => {
   const response = await api.get<ApiResponse<DashboardStats>>('/dashboard/stats');
@@ -19,4 +19,15 @@ export const getMilestoneTimeline = async (): Promise<Milestone[]> => {
 export const getUsers = async (): Promise<User[]> => {
   const response = await api.get<ApiResponse<User[]>>('/dashboard/users');
   return response.data.data || [];
+};
+
+export interface StatisticsQueryParams {
+  customer_name?: string;
+  status?: string;
+  risk_level?: string;
+}
+
+export const getProjectStatistics = async (params?: StatisticsQueryParams): Promise<ProjectStatistics> => {
+  const response = await api.get<ApiResponse<ProjectStatistics>>('/dashboard/statistics', { params });
+  return response.data.data as ProjectStatistics;
 };
