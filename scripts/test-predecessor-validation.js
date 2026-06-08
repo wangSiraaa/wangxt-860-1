@@ -1,4 +1,5 @@
 const BASE_URL = 'http://localhost:3001/api';
+const TEST_ACCEPTANCE_CODE_PREFIX = 'TEST-ACCEPT-';
 
 async function login(username, password) {
   const response = await fetch(`${BASE_URL}/auth/login`, {
@@ -71,10 +72,52 @@ async function submitAcceptance(token, acceptanceId) {
   return data;
 }
 
+async function getAcceptanceByCode(token, acceptanceCode) {
+  const response = await fetch(`${BASE_URL}/acceptance?acceptance_code=${acceptanceCode}`, {
+    headers: { 'Authorization': `Bearer ${token}` }
+  });
+  const data = await response.json();
+  if (!data.success) {
+    return null;
+  }
+  return data.data.find(a => a.acceptance_code === acceptanceCode) || null;
+}
+
+async function deleteAcceptance(token, acceptanceId) {
+  const response = await fetch(`${BASE_URL}/acceptance/${acceptanceId}`, {
+    method: 'DELETE',
+    headers: { 'Authorization': `Bearer ${token}` }
+  });
+  const data = await response.json();
+  return data;
+}
+
+async function cleanupTestAcceptances(token, projectId) {
+  console.log('  清理旧的测试验收单...');
+  const response = await fetch(`${BASE_URL}/acceptance?project_id=${projectId}&status=draft`, {
+    headers: { 'Authorization': `Bearer ${token}` }
+  });
+  const data = await response.json();
+  if (!data.success || !data.data) {
+    console.log('  无可清理的验收单');
+    return;
+  }
+  const testAcceptances = data.data.filter(a => 
+    a.acceptance_code && a.acceptance_code.startsWith(TEST_ACCEPTANCE_CODE_PREFIX)
+  );
+  for (const acceptance of testAcceptances) {
+    await deleteAcceptance(token, acceptance.id);
+    console.log(`  已删除: ${acceptance.acceptance_code}`);
+  }
+  console.log(`  清理完成，共删除 ${testAcceptances.length} 个测试验收单\n`);
+}
+
 async function runTest() {
   console.log('========================================');
   console.log('  前置里程碑验收规则验证脚本');
   console.log('========================================\n');
+
+  let testAcceptanceId = null;
 
   try {
     console.log('步骤 1: 登录系统...');
@@ -88,7 +131,10 @@ async function runTest() {
     }
     console.log(`✓ 找到项目: ${project.project_name} (${project.id})\n`);
 
-    console.log('步骤 3: 获取项目里程碑列表...');
+    console.log('步骤 3: 清理旧的测试验收单...');
+    await cleanupTestAcceptances(token, project.id);
+
+    console.log('步骤 4: 获取项目里程碑列表...');
     const milestones = await getMilestones(token, project.id);
     console.log('✓ 获取里程碑列表:');
     milestones.forEach(m => {
@@ -108,17 +154,20 @@ async function runTest() {
     console.log(`  - 当前里程碑 MS004: ${milestonePending.milestone_name} [${milestonePending.status}]`);
     console.log(`  - 预期结果: 因为 MS003 未完成，提交 MS004 的验收单应该被拒绝\n`);
 
-    console.log('步骤 4: 为 MS004 创建草稿验收单...');
+    const timestamp = Date.now();
+    const uniqueAcceptanceCode = `${TEST_ACCEPTANCE_CODE_PREFIX}${timestamp}`;
+    console.log(`步骤 5: 为 MS004 创建草稿验收单 (编码: ${uniqueAcceptanceCode})...`);
     const acceptance = await createAcceptance(
       token,
       project.id,
       milestonePending.id,
-      'TEST-ACCEPT-002',
-      '测试-用户验收测试验收单'
+      uniqueAcceptanceCode,
+      `测试-用户验收测试验收单-${timestamp}`
     );
+    testAcceptanceId = acceptance.id;
     console.log(`✓ 验收单创建成功: ${acceptance.acceptance_code} [${acceptance.status}]\n`);
 
-    console.log('步骤 5: 尝试提交验收单（跳过前置里程碑验证）...');
+    console.log('步骤 6: 尝试提交验收单（跳过前置里程碑验证）...');
     console.log('  调用接口: POST /api/acceptance/:id/submit');
     const result = await submitAcceptance(token, acceptance.id);
     console.log(`  接口响应: ${JSON.stringify(result, null, 2)}\n`);
@@ -137,6 +186,13 @@ async function runTest() {
         });
       }
       console.log('\n✅ 业务规则验证成功: 前置里程碑未完成时不能提交验收单');
+      
+      console.log('\n步骤 7: 清理测试验收单...');
+      if (testAcceptanceId) {
+        await deleteAcceptance(token, testAcceptanceId);
+        console.log('✓ 测试验收单已清理');
+      }
+      
       process.exit(0);
     } else {
       console.log('❌ 验证失败! 接口没有正确拒绝跳过前置里程碑的验收提交');

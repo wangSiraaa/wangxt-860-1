@@ -53,7 +53,7 @@ router.get('/', async (req: Request, res: Response) => {
     const { page, pageSize } = validate(paginationSchema, req.query);
     const currentPage = page as number;
     const currentPageSize = pageSize as number;
-    const { project_id, milestone_id, status } = req.query;
+    const { project_id, milestone_id, status, acceptance_code } = req.query;
     const offset = (currentPage - 1) * currentPageSize;
 
     let whereConditions: string[] = [];
@@ -88,6 +88,12 @@ router.get('/', async (req: Request, res: Response) => {
     if (status) {
       whereConditions.push(`a.status = $${paramIndex}`);
       params.push(status);
+      paramIndex++;
+    }
+
+    if (acceptance_code) {
+      whereConditions.push(`a.acceptance_code = $${paramIndex}`);
+      params.push(acceptance_code);
       paramIndex++;
     }
 
